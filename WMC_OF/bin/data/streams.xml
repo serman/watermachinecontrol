@@ -1,0 +1,8 @@
+<streams>
+	<stream url="http://192.168.1.108/axis-cgi/mjpg/video.cgi?channel=0&subtype=0"/>
+	<stream url="http://192.168.1.108/axis-cgi/mjpg/video.cgi?channel=0&subtype=1"/>
+	<!--<stream url="rtsp://192.168.1.108:554/cam/realmonitor?channel=1&subtype=0"/>-->
+	<!--<<stream url="http://212.170.22.153:8080/mjpg/video.mjpg"/> -->
+</streams>
+
+<file> /Users/sergiogalan/temporalborrar/snapshot2.jpg </file>
