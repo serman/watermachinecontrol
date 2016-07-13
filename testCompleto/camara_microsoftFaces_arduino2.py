@@ -10,15 +10,11 @@ import os
 from time import sleep
 import urllib
 import serial
-#osc
-import OSC
-import threading
 
 aperturaCamara = 15 # La camara con el zoom a tope va de -15 a 15
 resolucion = 1280.0
 
-s=None   #Servidor osc
-arduinoSerial   = serial.Serial('/dev/cu.usbmodem621', 9600)
+#arduinoSerial   = serial.Serial('COM5', 9600)
 
 mresult = None
 lastResult = None
@@ -34,32 +30,6 @@ _url = 'https://api.projectoxford.ai/face/v1.0/detect'
 _key = 'f9cf739b3848457b8ca4dfa6912f09ee'
 _maxNumRetries = 2
 pause=False;
-
-def rcvOscOF():
-    '''
-    inicia servidor OSC
-    '''
-    s = OSC.OSCServer(('127.0.0.1', 12345))
-    s.addDefaultHandlers()
-    s.addMsgHandler("/video",rcvMessage)
-
-    st = threading.Thread(target=s.serve_forever)
-    st.setDaemon( True)
-    st.start()
-
-def rcvMessage(addr, tags, stuff, source):
-      msg_string = "%s [%s] %s" % (addr, tags, str(stuff))
-      sys.stdout.write("OSCServer Got: '%s' from %s\n" % (msg_string, source))
-      #comprobar que el video que llega es el suyo
-      print ("received ed of video")
-      print (str(stuff))
-      processImage();
-      #actualizar videos
-      #self.myModel.defineNextVideo();
-      #self.myModel.setNextVideo(str(stuff))
-      #2 Enviar nuevos videos a Processing
-      #self.sendVideos()
-      #cherrypy.engine.publish('websocket-broadcast', TextMessage( self.myModel.currentContentAsJson() ) )    
 
 def sendDataLocal(pathFile):
     pathToFileInDisk = pathFile
@@ -221,66 +191,72 @@ def url_to_image(url):
     # return the image
     return [image, str(imageByteArray)]
 
-def processImage():
-   # [image, imageString] = url_to_image('http://admin:agua@192.168.1.108/cgi-bin/snapshot.cgi?1')
 
-    pathToFileInDisk = '/Users/sergiogalan/temporalborrar/snapshot2.jpg'
-    image=cv2.imread(pathToFileInDisk,0)
-    #cv2.imshow("Image", image)
-    with open( pathToFileInDisk, 'rb' ) as f:
-        diskImage = f.read()
-    # print ("face detectd")
-    mresult = sendStringImage(diskImage)
+
+while(1):
+    #img = cv2.imread('http://192.168.1.108/cgi-bin/snapshot.cgi?2')
+    #cv2.imshow('image',img)
+    #cv2.waitKey(0)
+    [image, imageString] = url_to_image('http://admin:agua@192.168.1.108/cgi-bin/snapshot.cgi?1')
+#    image = cv2.imread('Lenna.png')
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = faceCascade.detectMultiScale(
+        gray,
+        scaleFactor=1.1,
+        minNeighbors=5,
+        minSize=(30, 30)
+    )
+
+    if len(faces) > 0:
+        # print ("face detectd")
+        mresult = sendStringImage(imageString)
 #        mresult = sendDataLocal('Lenna.png')
-    if mresult is not None:
-        # print("mmmmmmmm not none")
-        lastResult = mresult
-        mresult = None
+        if mresult is not None:
+            # print("mmmmmmmm not none")
+            lastResult = mresult
+            mresult = None
 
-            # print(str(lastResult))
-    if lastResult is not None:
-        # print("lastresult not none")
-        for currFace in lastResult:
-            faceRectangle = currFace['faceRectangle']
-            faceAttributes = currFace['faceAttributes']
+                # print(str(lastResult))
+        if lastResult is not None:
+            # print("lastresult not none")
+            for currFace in lastResult:
+                faceRectangle = currFace['faceRectangle']
+                faceAttributes = currFace['faceAttributes']
 
-            if not currFace['faceId'] in facesIds:
-                if faceAttributes['glasses'] == 'NoGlasses':
-                    #arduinoSerial.write('b')
-                    posFaceX = faceRectangle['left'] + faceRectangle['width']/2
-                    val = chr(int(-posFaceX/resolucion*2*aperturaCamara-aperturaCamara+125))
-                    print(chr(int(-posFaceX/resolucion*2*aperturaCamara-aperturaCamara+125)), "x:", str(posFaceX))
-                    arduinoSerial.write(val)
-                    cv2.rectangle(image, (faceRectangle['left'], faceRectangle['top']),
-                                  (faceRectangle['left'] + faceRectangle['width'],
-                                   faceRectangle['top'] + faceRectangle['height']),
-                                  (0, 0, 255), 2)
+                if not currFace['faceId'] in facesIds:
+                    if faceAttributes['glasses'] == 'NoGlasses':
+                        posFaceX = faceRectangle['left'] + faceRectangle['width']/2
+                        val = chr(int(-posFaceX/resolucion*2*aperturaCamara-aperturaCamara+125))
+                        print(chr(int(-posFaceX/resolucion*2*aperturaCamara-aperturaCamara+125)), "x:", str(posFaceX))
+                        #arduinoSerial.write(val)
+                        cv2.rectangle(image, (faceRectangle['left'], faceRectangle['top']),
+                                      (faceRectangle['left'] + faceRectangle['width'],
+                                       faceRectangle['top'] + faceRectangle['height']),
+                                      (0, 0, 255), 2)
+                    else:
+                        cv2.rectangle(image, (faceRectangle['left'], faceRectangle['top']),
+                                      (faceRectangle['left'] + faceRectangle['width'],
+                                       faceRectangle['top'] + faceRectangle['height']),
+                                      (0, 255, 0), 2)
+
+                    facesIds[len(facesIds):] = [currFace['faceId']]
                 else:
                     cv2.rectangle(image, (faceRectangle['left'], faceRectangle['top']),
                                   (faceRectangle['left'] + faceRectangle['width'],
                                    faceRectangle['top'] + faceRectangle['height']),
                                   (0, 255, 0), 2)
 
-                facesIds[len(facesIds):] = [currFace['faceId']]
-            else:
-                cv2.rectangle(image, (faceRectangle['left'], faceRectangle['top']),
-                              (faceRectangle['left'] + faceRectangle['width'],
-                               faceRectangle['top'] + faceRectangle['height']),
-                              (0, 255, 0), 2)
+                textToWrite = "%c (%d)" % ('M' if faceAttributes['gender'] == 'male' else 'F', faceAttributes['age'])
+                cv2.putText(image, textToWrite, (faceRectangle['left'], faceRectangle['top'] - 15),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-            textToWrite = "%c (%d)" % ('M' if faceAttributes['gender'] == 'male' else 'F', faceAttributes['age'])
-            cv2.putText(image, textToWrite, (faceRectangle['left'], faceRectangle['top'] - 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+
     cv2.imshow("Image", image)
 
-rcvOscOF();
-while(1):
-    #img = cv2.imread('http://192.168.1.108/cgi-bin/snapshot.cgi?2')
-    #cv2.imshow('image',img)
-    #cv2.waitKey(0)
-    if cv2.waitKey(100) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
-    time.sleep(0.1)
 
 # When everything is done, release the capture
 cv2.destroyAllWindows()
